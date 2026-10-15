@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>อัปโหลดข้อมูล · บ้านใกล้เสร็จ PATTA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#f6f5f2;--surface:#fff;--ink:#1d1d1b;--ink-2:#55534e;--ink-3:#8a877f;--line:#e3e0d8;--acc:#1f6feb;--ok:#1a7f37;--crit:#c62828;--warn:#9a6700}
+@media (prefers-color-scheme:dark){:root{--ground:#161615;--surface:#201f1d;--ink:#eeece6;--ink-2:#bdbab2;--ink-3:#8c8981;--line:#34322e;--acc:#6ea8ff;--ok:#4cc26a;--crit:#ff7b72;--warn:#e3b341}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:'IBM Plex Sans Thai',system-ui,sans-serif;font-size:14px;line-height:1.55}
+main{max-width:520px;margin:40px auto;padding:0 16px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+h1{font-size:19px;margin:0 0 4px}
+p.sub{color:var(--ink-2);margin:0 0 18px;font-size:13px}
+input[type=email],input[type=password]{font:inherit;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:var(--surface);color:var(--ink)}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 16px;background:var(--ink);color:var(--surface);cursor:pointer;width:100%}
+button:disabled{opacity:.45;cursor:default}
+button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line);width:auto;padding:5px 12px;font-size:12px;font-weight:400}
+#drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:28px 14px;text-align:center;color:var(--ink-2);cursor:pointer;margin-bottom:14px}
+#drop.over{border-color:var(--acc);color:var(--acc)}
+#drop b{color:var(--ink)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0 0 14px;font-size:13px}
+dt{color:var(--ink-3)}dd{margin:0;font-variant-numeric:tabular-nums}
+.msg{min-height:1.2em;margin-top:12px;font-size:13px}
+.msg.err{color:var(--crit)}.msg.ok{color:var(--ok)}.msg.warn{color:var(--warn)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:var(--ink-3)}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <h1>อัปโหลดข้อมูลแดชบอร์ด</h1>
+  <p class="sub">สำหรับผู้ดูแลระบบเท่านั้น · บ้านใกล้เสร็จ PATTA (Priority 2)</p>
+
+  <form id="login" hidden>
+    <input id="email" type="email" autocomplete="username" placeholder="ชื่อ@patta.co.th" required>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="รหัสผ่าน" required>
+    <button id="go" type="submit">เข้าสู่ระบบ</button>
+  </form>
+
+  <section id="up" hidden>
+    <div class="top"><span id="who"></span><button class="ghost" id="out" type="button">ออกจากระบบ</button></div>
+    <dl><dt>ข้อมูลบนเว็บตอนนี้</dt><dd id="cur">กำลังตรวจ…</dd></dl>
+    <label id="drop">ลากไฟล์ <b>p2dash.html</b> มาวางที่นี่<br>หรือคลิกเพื่อเลือกไฟล์ (โฟลเดอร์ ส่วนตัว › p2-data)
+      <input id="file" type="file" accept=".html,text/html" hidden></label>
+    <dl id="info" hidden><dt>ไฟล์</dt><dd id="fname"></dd><dt>ข้อมูล ณ</dt><dd id="fasof"></dd><dt>จำนวนแปลง</dt><dd id="frows"></dd><dt>ผังโครงการ</dt><dd id="fimg"></dd></dl>
+    <button id="send" type="button" disabled>อัปโหลดขึ้นเว็บ</button>
+    <p class="sub" style="margin:12px 0 0">เสร็จแล้วเปิด <a href="./">แดชบอร์ด</a> แล้วกดรีเฟรชเพื่อดูข้อมูลใหม่</p>
+  </section>
+  <div class="msg" id="msg"></div>
+</div>
+</main>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { firebaseConfig, ADMINS } from './firebase-config.js';
+
+const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
+const $ = id => document.getElementById(id);
+const say = (t, cls = '') => { $('msg').textContent = t || ''; $('msg').className = 'msg ' + cls; };
+const admins = (ADMINS || []).map(s => s.toLowerCase());
+const LIM = 700000, enc = new TextEncoder();
+let parsed = null, curMeta = null;
+
+$('login').hidden = false;
+$('login').onsubmit = async ev => {
+  ev.preventDefault(); say('');
+  const email = $('email').value.trim().toLowerCase();
+  if (!admins.includes(email)) { say('บัญชีนี้ไม่มีสิทธิ์อัปโหลด', 'err'); return; }
+  $('go').disabled = true;
+  try { await signInWithEmailAndPassword(auth, email, $('pass').value); }
+  catch (e) { say(e.code === 'auth/invalid-credential' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : (e.code || e.message), 'err'); }
+  $('go').disabled = false;
+};
+$('out').onclick = () => signOut(auth).then(() => location.reload());
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+  const email = (user.email || '').toLowerCase();
+  if (!admins.includes(email)) { say('บัญชีนี้ไม่มีสิทธิ์อัปโหลด', 'err'); await signOut(auth); return; }
+  $('login').hidden = true; $('up').hidden = false; $('who').textContent = email; say('');
+  try {
+    const m = await getDoc(doc(db, 'p2', 'meta'));
+    curMeta = m.exists() ? m.data() : null;
+    $('cur').textContent = curMeta ? curMeta.asof + ' (อัปโหลดเมื่อ ' + new Date(curMeta.uploaded).toLocaleString('th-TH') + ')' : 'ยังไม่มีข้อมูล';
+  } catch (e) { $('cur').textContent = 'อ่านไม่ได้: ' + (e.code || e.message); }
+});
+
+function parse(text) {
+  const m = text.match(/const D = (\{[\s\S]*?\});\n/);
+  if (!m) throw new Error('ไม่ใช่ไฟล์ p2dash.html (หาข้อมูลในไฟล์ไม่เจอ)');
+  const D = JSON.parse(m[1]);
+  if (!Array.isArray(D.rows) || !D.asof) throw new Error('รูปแบบข้อมูลในไฟล์ไม่ถูกต้อง');
+  const rows = D.rows, img = D.img || {}; delete D.rows; delete D.img;
+  const chunks = []; let cur = [], size = 0;
+  for (const r of rows) {
+    const b = enc.encode(JSON.stringify(r)).length;
+    if (cur.length && size + b > LIM) { chunks.push(cur); cur = []; size = 0; }
+    cur.push(r); size += b;
+  }
+  if (cur.length) chunks.push(cur);
+  for (const [k, v] of Object.entries(img)) if (enc.encode(v).length > 1000000) throw new Error('ผังโครงการ ' + k + ' ใหญ่เกิน 1 MB');
+  return { D, rows, img, chunks };
+}
+async function pick(f) {
+  say(''); parsed = null; $('send').disabled = true; $('info').hidden = true;
+  if (!f) return;
+  try {
+    parsed = parse(await f.text());
+    $('fname').textContent = f.name; $('fasof').textContent = parsed.D.asof;
+    $('frows').textContent = parsed.rows.length + ' แปลง · ' + parsed.chunks.length + ' ก้อน';
+    $('fimg').textContent = Object.keys(parsed.img).length + ' โครงการ';
+    $('info').hidden = false; $('send').disabled = false;
+    if (curMeta && parsed.D.asof < curMeta.asof) say('ไฟล์นี้เก่ากว่าข้อมูลที่อยู่บนเว็บ ตรวจให้แน่ใจก่อนอัปโหลด', 'warn');
+    else if (curMeta && parsed.D.asof === curMeta.asof) say('ข้อมูลชุดนี้อยู่บนเว็บแล้ว อัปโหลดซ้ำได้ถ้าต้องการ', 'warn');
+  } catch (e) { say(e.message, 'err'); }
+}
+const drop = $('drop');
+$('file').onchange = e => pick(e.target.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); };
+
+$('send').onclick = async () => {
+  if (!parsed) return;
+  const { D, img, chunks } = parsed;
+  $('send').disabled = true;
+  try {
+    const keys = Object.keys(img).sort(), total = chunks.length + keys.length + 1; let n = 0;
+    const step = () => say('กำลังอัปโหลด ' + (++n) + ' / ' + total + ' …');
+    for (let i = 0; i < chunks.length; i++) { await setDoc(doc(db, 'p2', 'rows_' + i), { json: JSON.stringify(chunks[i]) }); step(); }
+    for (const k of keys) { await setDoc(doc(db, 'p2', 'img_' + k), { data: img[k] }); step(); }
+    await setDoc(doc(db, 'p2', 'meta'), { json: JSON.stringify(D), nrows: chunks.length, imgs: keys, asof: D.asof || '', uploaded: new Date().toISOString(), by: auth.currentUser.email });
+    step();
+    const old = curMeta ? curMeta.nrows || 0 : 0;
+    for (let i = chunks.length; i < old; i++) await deleteDoc(doc(db, 'p2', 'rows_' + i)).catch(() => {});
+    curMeta = { asof: D.asof, nrows: chunks.length, uploaded: new Date().toISOString() };
+    $('cur').textContent = D.asof + ' (เพิ่งอัปโหลด)';
+    say('อัปโหลดเสร็จแล้ว · ข้อมูล ณ ' + D.asof, 'ok');
+  } catch (e) {
+    say(e.code === 'permission-denied' ? 'ไม่มีสิทธิ์เขียนข้อมูล ตรวจว่าวาง Firestore Rules ชุดใหม่แล้ว' : 'อัปโหลดไม่สำเร็จ: ' + (e.code || e.message), 'err');
+    $('send').disabled = false;
+  }
+};
+</script>
+</body>
+</html>

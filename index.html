@@ -434,6 +434,12 @@ body.lock{overflow:hidden}
     <button id="gsubmit" type="submit">เข้าสู่ระบบ</button>
     <a href="#" id="gforgot" class="glink">ลืมรหัสผ่าน / ตั้งรหัสใหม่</a>
   </form>
+  <form id="gchange" hidden autocomplete="off">
+    <p style="margin:0 0 12px;color:var(--ink)">เข้าใช้ครั้งแรก กรุณาตั้งรหัสผ่านใหม่ของคุณเอง<br><span style="color:var(--ink-3);font-size:12px">อย่างน้อย 8 ตัว และมีตัวเลขอย่างน้อย 1 ตัว</span></p>
+    <input id="gnew1" type="password" autocomplete="new-password" placeholder="รหัสผ่านใหม่" required>
+    <input id="gnew2" type="password" autocomplete="new-password" placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง" required>
+    <button id="gchsubmit" type="submit">บันทึกรหัสผ่านใหม่</button>
+  </form>
   <button id="login" type="button" hidden>เข้าสู่ระบบ</button>
   <input id="gmailx" type="email" placeholder="ชื่อ@patta.co.th" hidden>
   <div class="err" id="gerr"></div>
@@ -570,8 +576,8 @@ body.lock{overflow:hidden}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
-  signInWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  signInWithEmailAndPassword, sendPasswordResetEmail, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig, AUTH_MODE, MS_TENANT_ID, ALLOWED_DOMAIN } from './firebase-config.js';
 
 const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
@@ -645,11 +651,39 @@ async function loadData() {
   D.img = Object.fromEntries(imgs.map((p, i) => [m.imgs[i], p.data().data]));
   return D;
 }
-let started = false;
+// บังคับตั้งรหัสใหม่เมื่อเข้าครั้งแรก (บัญชีที่แอดมินสร้างด้วยรหัสเริ่มต้น)
+function changePw(user, email) {
+  return new Promise(resolve => {
+    $g('gform').hidden = true; $g('gchange').hidden = false; err(''); $g('gwho').textContent = email;
+    $g('gnew1').focus();
+    $g('gchange').onsubmit = async ev => {
+      ev.preventDefault(); err('');
+      const p1 = $g('gnew1').value, p2 = $g('gnew2').value;
+      if (p1.length < 8 || !/[0-9]/.test(p1)) { err('รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีตัวเลข'); return; }
+      if (/^(.)\1+$/.test(p1)) { err('รหัสผ่านง่ายเกินไป'); return; }
+      if (p1 !== p2) { err('รหัสผ่านทั้งสองช่องไม่ตรงกัน'); return; }
+      $g('gchsubmit').disabled = true;
+      try {
+        await updatePassword(user, p1);
+        await updateDoc(doc(db, 'allow', email), { mustChange: false });
+        $g('gchange').hidden = true; resolve(true);
+      } catch (e) {
+        err(e.code === 'auth/requires-recent-login' ? 'กรุณาออกจากระบบแล้วล็อกอินใหม่ก่อนตั้งรหัส' : e.code === 'auth/password-does-not-meet-requirements' ? 'รหัสผ่านไม่ตรงตามเงื่อนไขของระบบ' : 'ตั้งรหัสไม่สำเร็จ: ' + (e.code || e.message));
+        $g('gchsubmit').disabled = false;
+      }
+    };
+  });
+}
+let started = false, busy = false;
 async function start(user) {
-  if (started) return;
+  if (started || busy) return;
+  busy = true;
   const email = (user.email || '').toLowerCase();
-  if (!email.endsWith('@' + ALLOWED_DOMAIN)) { err('บัญชีนี้ไม่ใช่บัญชีของบริษัท'); await signOut(auth); return; }
+  if (!email.endsWith('@' + ALLOWED_DOMAIN)) { err('บัญชีนี้ไม่ใช่บัญชีของบริษัท'); busy = false; await signOut(auth); return; }
+  try {
+    const a = await getDoc(doc(db, 'allow', email));
+    if (a.exists() && a.data().mustChange === true && !(await changePw(user, email))) return;
+  } catch (e) { /* ผู้ดูแลที่ไม่มีชื่อใน allow อ่านเอกสารนี้ไม่ได้ ข้ามไป */ }
   $g('gwho').textContent = 'กำลังโหลดข้อมูล · ' + email;
   try {
     window.__P2D = await loadData();
@@ -659,6 +693,7 @@ async function start(user) {
   } catch (e) {
     err(e.code === 'permission-denied' ? 'บัญชีนี้ยังไม่ได้รับสิทธิ์ดูข้อมูล ติดต่อผู้ดูแลระบบ' : 'โหลดข้อมูลไม่สำเร็จ: ' + (e.code || e.message));
   }
+  busy = false;
 }
 onAuthStateChanged(auth, user => {
   if (!user || started) return;

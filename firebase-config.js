@@ -12,3 +12,5 @@ export const firebaseConfig = {
 export const AUTH_MODE = 'password';
 export const MS_TENANT_ID = '';   // ใช้เฉพาะ AUTH_MODE = 'microsoft' · IT ให้ได้
 export const ALLOWED_DOMAIN = 'patta.co.th';
+// ผู้ดูแลที่อัปโหลดข้อมูลผ่านหน้า upload.html ได้ (ต้องตรงกับ isAdmin() ใน firestore.rules)
+export const ADMINS = ['jeeraphat.s@patta.co.th'];
