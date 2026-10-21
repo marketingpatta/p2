@@ -191,12 +191,13 @@ function drawTrack1(R0, G0, force){
     const mx = Math.max(0,...pts.map(p=>Math.abs(p.l)));
     const frows = Math.max(Math.ceil(fin.length/fcols), Math.ceil(finx.length/fcols2));
     const wcols = Math.max(1, Math.floor((xf - X(99) - 16)/wcell)), wrows = Math.ceil(wait.length/wcols);
-    const hh = Math.max(46, mx*2*vs+step+12, frows*cellY+12, wrows*wcell+12);
+    const hh = Math.max(58, mx*2*vs+step+12, frows*cellY+12, wrows*wcell+12);
     const cy = y + hh/2;
     CRS = [];
     let s = `<line class="t-base" x1="0" x2="${x1}" y1="${y+hh}" y2="${y+hh}"/>`;
-    s += `<text class="t-row-lab" x="0" y="${cy-2}">${esc(D.pj[P.pj]||P.pj).replace('ภัททา ','')}</text>`;
-    s += `<text class="t-row-sub" x="0" y="${cy+14}">${P.pj} · ถึงเส้นชัย ${fin.length+finx.length} · ใกล้เสร็จ ${P.rs.filter(NEAR).length}</text>`;
+    s += `<text class="t-row-lab" x="0" y="${cy-8}">${esc(D.pj[P.pj]||P.pj).replace('ภัททา ','')}</text>`;
+    s += `<text class="t-row-sub" x="0" y="${cy+8}">${P.pj} · ถึงเส้นชัย ${fin.length+finx.length} · ใกล้เสร็จ ${P.rs.filter(NEAR).length}</text>`;
+    s += `<text class="t-row-tot" x="0" y="${cy+25}">บนสนามทั้งหมด <tspan class="n">${P.rs.length}</tspan> หลัง</text>`;   /* ยอดรวมบ้านบนสนามต่อโครงการ (ผู้ใช้ขอ 21 ต.ค. 69) */
     pts.forEach(p=>{ s += dot(p.r, p.x, cy + p.l*vs); });
     const fy0 = cy + sq*0.4 - (Math.ceil(fin.length/fcols)-1)*cellY/2, fx0 = cy + sq*0.4 - (Math.ceil(finx.length/fcols2)-1)*cellY/2;
     const wy0 = cy - (wrows-1)*wcell/2;
