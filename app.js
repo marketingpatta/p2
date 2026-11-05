@@ -430,7 +430,7 @@ function pass(r){
   if(F.old && !(r.oldpo>0)) return false;
   if(F.gd!==''){ const c=gdOf(r); if(F.gd==='7'){ if(!(c!=null&&c<=7)) return false; } else if(F.gd==='null'){ if(c!=null) return false; } else if(String(c)!==F.gd) return false; }
   if(F.rem!=null){ const n=rem(r), b=n>=8?8:n>=5?5:n; if(b!==F.rem) return false; }
-  if(F.q){ const q=F.q.toLowerCase(); const hay=[r.ref,r.cust,r.blk,r.w&&r.w[0],r.w&&r.w[2],D.pj[r.pj]].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
+  if(F.q){ const q=F.q.toLowerCase(); const hay=[r.ref,r.blk,r.w&&r.w[0],r.w&&r.w[2],D.pj[r.pj]].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
   return true;
 }
 function renderTable(){
@@ -596,8 +596,8 @@ function openD(r){
     </div>
     ${ct(r).sup.length?`<div class="sm muted" style="margin-top:8px">ค้างจ่ายมากสุด: ${ct(r).sup.map(x=>esc(x[0])+' '+fm(x[1])).join(' · ')}</div>`:''}</div>
     <dl class="dl">
-      ${sold?`<dt>ลูกค้า</dt><dd>${esc(r.cust)} · ${esc(r.cus)}</dd><dt>ราคาขาย</dt><dd>${fm(r.net)}</dd><dt>เงินรอรับตอนโอน</dt><dd><b>${fm(r.left)}</b></dd><dt>นัดโอน</dt><dd>${fd(r.due)}</dd>`
-            :`<dt>ราคาตั้งขาย</dt><dd>${fm(r.ask)}</dd>`}
+      ${sold?`<dt>ลูกค้า</dt><dd>มีลูกค้าแล้ว${r.cus?' · '+esc(r.cus):''}</dd><dt>ราคาขาย</dt><dd>${fm(r.net)}</dd><dt>เงินรอรับตอนโอน</dt><dd><b>${fm(r.left)}</b></dd><dt>นัดโอน</dt><dd>${fd(r.due)}</dd>`
+            :`<dt>ลูกค้า</dt><dd>ยังไม่มีลูกค้า</dd><dt>ราคาตั้งขาย</dt><dd>${fm(r.ask)}</dd>`}
     </dl>`;
   $('drawer').hidden=false; $('ov').hidden=false; $('d-x').focus();
   $('d-x').onclick = closeD;
